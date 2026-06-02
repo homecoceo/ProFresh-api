@@ -39,7 +39,7 @@ def register_fonts():
         ('SansB',  '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf'),
         ('SansI',  '/usr/share/fonts/truetype/liberation/LiberationSans-Italic.ttf'),
         ('SerifB', '/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf'),
-        ('LoraI',  '/usr/share/fonts/truetype/google-fonts/Lora-Italic-Variable.ttf'),
+        ('SansI',  '/usr/share/fonts/truetype/google-fonts/Lora-Italic-Variable.ttf'),
     ]
     for name, path in font_paths:
         if os.path.exists(path):
@@ -138,7 +138,7 @@ def draw_header(c, job, page, total_pages):
 
     c.setFont('SerifB', 17); c.setFillColor(WHITE)
     c.drawString(tx, H-0.46*inch, 'PRO-FRESH HOUSTON')
-    c.setFont('LoraI', 8); c.setFillColor(SKY)
+    c.setFont('SansI', 8); c.setFillColor(SKY)
     c.drawString(tx, H-0.65*inch, 'We put the "Pro-Fresh" in Professional Cleaning')
     c.setFont('Sans', 8); c.setFillColor(colors.HexColor('#9CA3AF'))
     c.drawRightString(W-M, H-0.46*inch, 'profreshhouston.com')
