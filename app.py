@@ -457,7 +457,21 @@ def build_pdf(job):
 # ── Routes ────────────────────────────────────────────────────────────────
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({'status': 'ok', 'service': 'Pro-Fresh PDF Generator'})
+    try:
+        from PIL import Image
+        pil_version = Image.__version__
+    except Exception as e:
+        pil_version = str(e)
+    try:
+        import reportlab
+        rl_version = reportlab.Version
+    except Exception as e:
+        rl_version = str(e)
+    return jsonify({
+        'status': 'ok',
+        'pillow': pil_version,
+        'reportlab': rl_version
+    })
 
 @app.route('/generate-report', methods=['POST'])
 def generate_report():
