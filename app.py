@@ -27,10 +27,6 @@ def add_cors(response):
     response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
     return response
 
-@app.route('/generate-report', methods=['OPTIONS'])
-def options():
-    return '', 200
-
 
 
 # ── Font registration ─────────────────────────────────────────────────────
@@ -494,8 +490,10 @@ def build_pdf(job):
 def health():
     return jsonify({'status': 'ok', 'service': 'Pro-Fresh PDF Generator'})
 
-@app.route('/generate-report', methods=['POST'])
+@app.route('/generate-report', methods=['POST', 'OPTIONS'])
 def generate_report():
+    if request.method == 'OPTIONS':
+        return '', 200
     """
     Accepts JSON job data, returns PDF file.
 
