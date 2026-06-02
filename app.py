@@ -18,6 +18,7 @@ from reportlab.lib.utils import ImageReader
 from PIL import Image as PILImage
 
 app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max
 
 @app.after_request
 def add_cors(response):
@@ -39,13 +40,28 @@ def register_fonts():
         ('SansB',  '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf'),
         ('SansI',  '/usr/share/fonts/truetype/liberation/LiberationSans-Italic.ttf'),
         ('SerifB', '/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf'),
-        ('SansI',  '/usr/share/fonts/truetype/google-fonts/Lora-Italic-Variable.ttf'),
+        ('LoraI',  '/usr/share/fonts/truetype/google-fonts/Lora-Italic-Variable.ttf'),
     ]
     for name, path in font_paths:
         if os.path.exists(path):
             pdfmetrics.registerFont(TTFont(name, path))
 
 register_fonts()
+
+# ── Helpers ──────────────────────────────────────────────────────────────────
+def format_date(date_str):
+    """Convert 2026-06-01 to June 1, 2026"""
+    if not date_str or date_str == '—':
+        return date_str
+    try:
+        parts = date_str.split('-')
+        if len(parts) == 3:
+            months = ['January','February','March','April','May','June',
+                      'July','August','September','October','November','December']
+            return months[int(parts[1])-1] + ' ' + str(int(parts[2])) + ', ' + parts[0]
+    except:
+        pass
+    return date_str
 
 # ── Colors ────────────────────────────────────────────────────────────────
 NAVY      = colors.HexColor('#0F1E36')
@@ -138,7 +154,7 @@ def draw_header(c, job, page, total_pages):
 
     c.setFont('SerifB', 17); c.setFillColor(WHITE)
     c.drawString(tx, H-0.46*inch, 'PRO-FRESH HOUSTON')
-    c.setFont('SansI', 8); c.setFillColor(SKY)
+    c.setFont('LoraI', 8); c.setFillColor(SKY)
     c.drawString(tx, H-0.65*inch, 'We put the "Pro-Fresh" in Professional Cleaning')
     c.setFont('Sans', 8); c.setFillColor(colors.HexColor('#9CA3AF'))
     c.drawRightString(W-M, H-0.46*inch, 'profreshhouston.com')
@@ -154,7 +170,7 @@ def draw_header(c, job, page, total_pages):
     c.drawString(M, H-1.21*inch, labels.get(page, 'HVAC POST-SERVICE REPORT'))
     c.setFont('Sans', 8); c.setFillColor(colors.HexColor('#B2E4E0'))
     tech = job.get('tech', '—')
-    date = job.get('date', '—')
+    date = format_date(job.get('date', '—'))
     c.drawRightString(W-M, H-1.21*inch, f'{date}   ·   Tech: {tech}   ·   Page {page} of {total_pages}')
 
 def draw_footer(c):
@@ -181,24 +197,37 @@ def info_cards(c, y, job):
         ('CLIENT',   job.get('clientName', '—'),   ''),
         ('ADDRESS',  job.get('address', '—'),       job.get('cityZip', '')),
         ('SERVICE',  job.get('service', '—'),       job.get('unitsVents', '')),
-        ('PHONE',    job.get('phone', '—'),         job.get('date', '')),
+        ('PHONE',    job.get('phone', '—'),         format_date(job.get('date', ''))),
     ]
     for i, (lbl, val, sub) in enumerate(cards):
         cx = M + i*(cw+0.09*inch)
         rr(c, cx, y-ch, cw, ch, 5, fill=IVORY, stroke=LIGHT, sw=0.5)
         c.setFont('SansB', 6.5); c.setFillColor(TEAL)
         c.drawString(cx+0.1*inch, y-0.17*inch, lbl)
+        # Smart wrapping - find natural break point
+        max_w = cw - 0.2*inch
         c.setFont('SansB', 8); c.setFillColor(NAVY)
-        # Wrap long values
-        if len(val) > 16:
-            c.drawString(cx+0.1*inch, y-0.30*inch, val[:16])
-            c.setFont('Sans', 7.5)
-            c.drawString(cx+0.1*inch, y-0.42*inch, val[16:32])
+        if c.stringWidth(val, 'SansB', 8) > max_w:
+            # Try to break at a space
+            words = val.split(' ')
+            line1 = ''; line2 = ''
+            for word in words:
+                test = (line1 + ' ' + word).strip()
+                if c.stringWidth(test, 'SansB', 8) <= max_w:
+                    line1 = test
+                else:
+                    line2 = (line2 + ' ' + word).strip()
+            c.drawString(cx+0.1*inch, y-0.28*inch, line1)
+            c.setFont('Sans', 7.5); c.setFillColor(NAVY)
+            c.drawString(cx+0.1*inch, y-0.38*inch, line2[:24])
+            if sub:
+                c.setFont('Sans', 7); c.setFillColor(MID)
+                c.drawString(cx+0.1*inch, y-0.48*inch, sub[:22])
         else:
             c.drawString(cx+0.1*inch, y-0.32*inch, val)
             if sub:
                 c.setFont('Sans', 7.5); c.setFillColor(MID)
-                c.drawString(cx+0.1*inch, y-0.44*inch, sub[:20])
+                c.drawString(cx+0.1*inch, y-0.44*inch, sub[:22])
     return y - ch - 0.14*inch
 
 # ── Services table ────────────────────────────────────────────────────────
@@ -351,7 +380,7 @@ def sig_line(c, y, job):
     c.line(M, y, M+2.2*inch, y)
     c.setFont('Sans', 7.5); c.setFillColor(MID)
     tech = job.get('tech', '—')
-    date = job.get('date', '—')
+    date = format_date(job.get('date', '—'))
     c.drawString(M, y-0.14*inch, f'Technician: {tech}  ·  {date}')
 
 # ── Main PDF builder ──────────────────────────────────────────────────────
@@ -367,7 +396,7 @@ def build_pdf(job):
     services = job.get('services', [])
     photos = job.get('photos', [])  # list of {src: base64, label: str}
 
-    # Convert base64 photos to PIL images
+    # Convert base64 photos to PIL images - resize large images for performance
     pil_photos = []
     for p in photos:
         try:
@@ -376,8 +405,14 @@ def build_pdf(job):
                 src = src.split(',')[1]
             img_bytes = base64.b64decode(src)
             img = PILImage.open(io.BytesIO(img_bytes)).convert('RGB')
+            # Resize if too large (max 1200px wide) to prevent memory issues
+            if img.width > 1200:
+                ratio = 1200 / img.width
+                new_h = int(img.height * ratio)
+                img = img.resize((1200, new_h), PILImage.LANCZOS)
             pil_photos.append({'img': img, 'label': p.get('label', '')})
-        except:
+        except Exception as e:
+            print(f"Photo error: {e}")
             pil_photos.append(None)
 
     # ── PAGE 1: Header + Info + Services + Photos ──────────────────────
@@ -457,21 +492,7 @@ def build_pdf(job):
 # ── Routes ────────────────────────────────────────────────────────────────
 @app.route('/health', methods=['GET'])
 def health():
-    try:
-        from PIL import Image
-        pil_version = Image.__version__
-    except Exception as e:
-        pil_version = str(e)
-    try:
-        import reportlab
-        rl_version = reportlab.Version
-    except Exception as e:
-        rl_version = str(e)
-    return jsonify({
-        'status': 'ok',
-        'pillow': pil_version,
-        'reportlab': rl_version
-    })
+    return jsonify({'status': 'ok', 'service': 'Pro-Fresh PDF Generator'})
 
 @app.route('/generate-report', methods=['POST'])
 def generate_report():
@@ -517,8 +538,7 @@ def generate_report():
         )
 
     except Exception as e:
-        import traceback
-        return jsonify({'error': str(e), 'trace': traceback.format_exc()}), 500
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
